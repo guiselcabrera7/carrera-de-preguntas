@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Carrera de Preguntas — línea (definitiva)</title>
+<style>
+:root{
+  --bg:#071028;
+  --panel:#071226;
+  --muted:#9fb0c8;
+  --accent:#60a5fa;
+  --glass: rgba(255,255,255,0.03);
+  --good: #10b981;
+  --bad: #ef4444;
+  --notif-bg: rgba(0,0,0,0.5);
+  --overlay: rgba(2,6,23,0.6);
+}
+*{box-sizing:border-box;font-family:Inter, "Segoe UI", Roboto, Arial, sans-serif}
+body{margin:0;min-height:100vh;background:linear-gradient(180deg,#041225,#071028);color:#e6eef8;display:flex;align-items:center;justify-content:center;padding:18px;}
+.app{width:100%;max-width:1150px;display:grid;grid-template-columns:1fr 420px;gap:18px;align-items:start}
+.board{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 10px 30px rgba(2,6,23,0.6);position:relative}
+.track-wrap{position:relative;width:100%;display:flex;flex-direction:column;align-items:center}
+.turn-banner{font-weight:900;font-size:18px;color:#ffffff;background:linear-gradient(90deg, rgba(0,0,0,0.25), rgba(255,255,255,0.02));padding:8px 12px;border-radius:10px;margin-bottom:10px;min-width:320px;text-align:center;box-shadow:0 6px 14px rgba(2,6,23,0.5)}
+.track{position:relative;height:160px;width:860px;margin:12px auto;display:block;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);padding:12px;overflow:visible}
+.cell{width:110px;height:110px;border-radius:12px;background:var(--glass);border:1px solid rgba(255,255,255,0.04);display:flex;flex-direction:column;align-items:center;justify-content:center;position:absolute;padding:8px;cursor:pointer;transition:transform .12s,box-shadow .12s;backdrop-filter: blur(4px);z-index:1}
+.cell .label{position:absolute;left:8px;top:8px;font-weight:800;color:var(--muted);font-size:13px}
+.cell .icon{font-size:30px;margin-bottom:6px}
+.cell .badge{position:absolute;right:8px;top:8px;background:rgba(0,0,0,0.25);padding:4px 6px;border-radius:8px;font-weight:800;color:#fff;font-size:12px}
+
+/* linear positions */
+.cell[data-i="0"]{left:20px;top:20px;background:linear-gradient(180deg,#064058,#0b4260)}
+.cell[data-i="1"]{left:150px;top:20px;background:linear-gradient(180deg,#0b3b5a,#0f5a78)}
+.cell[data-i="2"]{left:280px;top:20px;background:linear-gradient(180deg,#0b5a3b,#0fa678)}
+.cell[data-i="3"]{left:410px;top:20px;background:linear-gradient(180deg,#3b275a,#6047a8)}
+.cell[data-i="4"]{left:540px;top:20px;background:linear-gradient(180deg,#7c3aed,#9b59ff)}
+.cell[data-i="5"]{left:670px;top:20px;background:linear-gradient(180deg,#b45309,#f59e0b)}
+.cell[data-i="6"]{left:800px;top:20px;background:linear-gradient(180deg,#065f46,#10b981);color:#081412}
+
+.pieces{position:absolute;bottom:8px;left:8px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 16px);z-index:2;pointer-events:none}
+.piece{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid rgba(0,0,0,0.18);box-shadow:0 6px 16px rgba(2,6,23,0.5);background:rgba(255,255,255,0.02);transition:transform .12s,box-shadow .12s;position:relative;user-select:none;touch-action:none;z-index:2;pointer-events:auto}
+.piece.halo{box-shadow:0 0 36px 14px rgba(96,165,250,0.22),0 8px 28px rgba(2,6,23,0.6);transform:translateY(-6px);}
+.piece.turn{outline:3px solid rgba(255,255,255,0.06);animation: pulse 1200ms infinite;}
+@keyframes pulse{0%{box-shadow:0 6px 16px rgba(37,99,235,0.18)}50%{box-shadow:0 12px 30px rgba(96,165,250,0.22)}100%{box-shadow:0 6px 16px rgba(37,99,235,0.18)}}
+
+.panel{background:linear-gradient(180deg,#061024,#071128);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);display:flex;flex-direction:column;gap:10px;min-height:300px}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{background:linear-gradient(180deg,#0b1220,#0f1726);border:1px solid rgba(255,255,255,0.06);color:var(--accent);padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:700}
+button.primary{background:linear-gradient(180deg,#2563eb,#1d4ed8);color:white;border:none;box-shadow:0 8px 24px rgba(37,99,235,0.18)}
+.msg{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;color:var(--muted);font-size:14px}
+.players-list{display:flex;flex-direction:column;gap:6px}
+.player-row{display:flex;gap:8px;align-items:center}
+.player-badge{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800}
+.footer{margin-top:auto;font-size:12px;color:var(--muted);text-align:center}
+
+.modal-back{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:none;align-items:center;justify-content:center;z-index:300}
+.modal{width:720px;background:#071428;padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);max-width:96vw}
+.options{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.opt-btn{padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:linear-gradient(180deg,rgba(255,255,255,0.012),rgba(255,255,255,0.006));cursor:pointer;text-align:left}
+.opt-btn.correct{outline:3px solid rgba(16,185,129,0.14)}
+.opt-btn.incorrect{outline:3px solid rgba(239,68,68,0.12)}
+
+.notif{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--notif-bg);padding:18px 22px;border-radius:12px;font-weight:900;font-size:22px;z-index:350;display:none;backdrop-filter: blur(6px);box-shadow:0 20px 60px rgba(0,0,0,0.6)}
+.notif.ok{color:var(--good);border:1px solid rgba(16,185,129,0.12)}
+.notif.fail{color:var(--bad);border:1px solid rgba(239,68,68,0.12)}
+
+.overlay{position:absolute;inset:0;background:var(--overlay);z-index:250;display:none;border-radius:14px}
+
+@media (max-width:980px){.app{grid-template-columns:1fr}.track{width:100%;height:auto}.modal{width:92%}}
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Carrera de Preguntas — línea (definitiva)">
+  <div class="board" aria-hidden="false">
+    <div class="track-wrap">
+      <div id="turnBanner" class="turn-banner">Partida lista. Jugador 1 comienza.</div>
+      <div id="track" class="track" aria-live="polite">
+        <div class="cell" data-i="0" data-action="start" title="Salida">
+          <div class="label">SALIDA</div>
+          <div class="icon">🏁</div>
+          <div class="pieces" aria-hidden="true"></div>
+        </div>
+
+        <div class="cell" data-i="1" data-action="none" title="1">
+          <div class="label">1</div>
+          <div class="badge">+2</div>
+          <div class="icon">1</div>
+          <div class="pieces" aria-hidden="true"></div>
+        </div>
+
+        <div class="cell" data-i="2" data-action="none" title="2">
+          <div class="label">2</div>
+          <div class="icon">2</div>
+          <div class="pieces" aria-hidden="true"></div>
+        </div>
+
+        <div class="cell" data-i="3" data-action="none" title="3">
+          <div class="label">3</div>
+          <div class="icon">3</div>
+          <div class="pieces" aria-hidden="true"></div>
+        </div>
+
+        <div class="cell" data-i="4" data-action="duel" title="4 — Duelo">
+          <div class="label">4</div>
+          <div class="icon">⚔️</div>
+          <div class="pieces" aria-hidden="true"></div>
+        </div>
+
+        <div class="cell" data-i="5" data-action="none" title="5">
+          <div class="label">5</div>
+          <div class="badge">-2</div>
+          <div class="icon">5</div>
+          <div class="pieces" aria-hidden="true"></div>
+        </div>
+
+        <div class="cell" data-i="6" data-action="finish" title="Meta">
+          <div class="label">META</div>
+          <div class="icon">🏆</div>
+          <div class="pieces" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div id="notif" class="notif"></div>
+      <div id="overlay" class="overlay" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <aside class="panel" aria-label="Controles y estado">
+    <div>
+      <h3>Controles</h3>
+      <div class="info">Dado 1–3 · Sacar carta · Duelo · Arrastra fichas libremente · Volumen · Sonido ON/OFF</div>
+    </div>
+
+    <div class="controls" id="mainControls">
+      <button id="rollBtn" class="primary">🎲 Tirar dado</button>
+      <button id="drawBtn">🃏 Sacar carta</button>
+      <button id="resetBtn">🔁 Reiniciar</button>
+      <button id="muteBtn">🔊 Sonido ON</button>
+      <label style="display:flex;align-items:center;gap:8px;color:var(--muted);margin-left:6px">Vol <input id="volRange" type="range" min="0" max="100" value="60" style="vertical-align:middle"></label>
+    </div>
+
+    <div class="msg small" id="instructions">Arrastra cualquier ficha siempre. El dado solo muestra un número aleatorio.</div>
+
+    <div class="coord-box" id="coordBox">Modo edición: desactivado.</div>
+
+    <div>
+      <h3>Jugadores</h3>
+      <div class="players-list" id="playersList"></div>
+    </div>
+
+    <div>
+      <h3>Reglas rápidas</h3>
+      <div class="info" id="rulesBox">
+        • Arrastre libre: mueve fichas a cualquier casilla.<br/>
+        • Duelo en casilla 4 (se abre automáticamente).<br/>
+        • Casilla 1: avanza 2 casillas.<br/>
+        • Casilla 5: retrocede 2 casillas.
+      </div>
+    </div>
+
+    <div style="margin-top:10px"></div>
+
+    <!-- bottom edit tools -->
+    <div style="margin-top:auto">
+      <button id="editToggle">✏️ Editar tablero</button>
+      <div style="margin-top:8px">
+        <button id="colorBtn">🎨 Personalizar colores</button>
+        <button id="soundBtn">🎧 Cambiar sonidos</button>
+      </div>
+      <div style="margin-top:8px">
+        <button id="exportCssBtn">📋 Exportar CSS</button>
+        <button id="exportJsonBtn">📥 Exportar JSON</button>
+      </div>
+      <div class="footer" style="margin-top:10px">Editable: preguntas en el script; volumen y mute se guardan.</div>
+    </div>
+  </aside>
+</div>
+
+<!-- color modal -->
+<div class="modal-back" id="colorModal" role="dialog" aria-modal="true" style="display:none;z-index:400">
+  <div class="modal">
+    <h4>Personalizar color de casillas</h4>
+    <div class="info">Selecciona casilla (0–6) o "Todas", y elige color de fondo (HEX).</div>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+      <label>Casilla: <select id="colorCell"><option value="all">Todas</option><option value="0">0 (Salida)</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6 (Meta)</option></select></label>
+      <label>Color: <input id="colorInput" class="color-input" type="color" value="#0b4260"></label>
+      <button id="applyColor">Aplicar</button>
+      <button id="closeColor">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- sound modal -->
+<div class="modal-back" id="soundModal" role="dialog" aria-modal="true" style="display:none;z-index:400">
+  <div class="modal">
+    <h4>Selector de sonidos</h4>
+    <div class="sound-panel">
+      <label>Tirada de dado: <select id="soundDiceSel"><option value="classic">Clásico</option><option value="digital">Digital</option><option value="soft">Suave</option></select></label>
+      <label>Sacar carta: <select id="soundDrawSel"><option value="shuf">Shuf</option><option value="slide">Slide</option><option value="paper">Paper</option></select></label>
+      <label>Duelo inicio: <select id="soundDuelSel"><option value="fanfare">Fanfare</option><option value="stomp">Stomp</option><option value="low">Low</option></select></label>
+      <label>Acierto: <select id="soundOkSel"><option value="ping">Ping</option><option value="bright">Bright</option></select></label>
+      <label>Fallo: <select id="soundFailSel"><option value="thud">Thud</option><option value="ding">Ding</option></select></label>
+      <label>Victoria (duelo): <select id="soundDuelWinSel"><option value="epic">Epic</option><option value="short">Short</option></select></label>
+      <div style="margin-top:8px;display:flex;gap:8px"><button id="applySounds">Guardar</button><button id="closeSound">Cerrar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- question modal -->
+<div class="modal-back" id="modalBack" role="dialog" aria-modal="true" style="z-index:500">
+  <div class="modal" role="document">
+    <h4 id="modalTitle">Pregunta</h4>
+    <div class="duel-players" id="duelPlayers" style="display:none"></div>
+    <div class="question" id="questionText">—</div>
+    <div class="options" id="options"></div>
+    <div class="duel-result" id="duelResult" style="display:none"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <div class="small" id="modalFoot"></div>
+      <div>
+        <button id="closeModal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.addEventListener('DOMContentLoaded', ()=>{
+
+// Data
+const PLAYERS_EMOJIS = ["🤠","👹","🐒","🦋","🌚","🌺"];
+const RAW_QUESTIONS = [
+  {q:"¿Qué característica define a las políticas lingüísticas en general?", opts:["Son decisiones privadas de cada comunidad lingüística.","Regulan el uso, enseñanza y estatus de las lenguas dentro de un territorio.","Se aplican únicamente a lenguas extranjeras.","Sólo afectan a la educación, no a la administración pública."], a:1},
+  {q:"En la política de asimilación, ¿qué se busca con respecto a las lenguas minoritarias?", opts:["Promoverlas como patrimonio cultural.","Integrarlas de forma voluntaria en la educación.","Subordinarlas o eliminarlas para reforzar la unidad nacional.","Garantizar su uso en medios de comunicación."], a:2},
+  {q:"En el caso de España durante el franquismo, ¿qué medida refleja la política de asimilación?", opts:["El reconocimiento de las lenguas cooficiales.","La supresión del catalán, gallego y euskera en la vida pública.","La enseñanza bilingüe en todas las escuelas.","La creación de medios de comunicación en lenguas regionales."], a:1},
+  {q:"¿Qué país prohibió en 1896 el uso del idioma nativo en las escuelas, estableciendo el inglés como única lengua de instrucción?", opts:["Hawai","Argentina","Filipinas","Turquía"], a:0},
+  {q:"¿Qué tipo de política lingüística permite que las lenguas evolucionen sin intervención estatal, aunque con el riesgo de desaparición de las minoritarias?", opts:["Promoción del idioma oficial","No intervención","Asimilación","Estatus legal diferenciado"], a:1},
+  {q:"En Brasil, la falta de protección hacia las lenguas indígenas favoreció:", opts:["El surgimiento de un sistema bilingüe nacional.","El dominio casi absoluto del portugués en la vida pública.","La oficialización de las lenguas indígenas en las escuelas.","La coexistencia equilibrada de más de 100 lenguas oficiales."], a:1},
+  {q:"¿Qué país combina actualmente una política de estatus legal diferenciado con una de bilingüismo territorial?", opts:["Turquía","España","Chile","Francia"], a:1},
+  {q:"¿Qué política reconoce la coexistencia de varias comunidades lingüísticas con derechos legales distintos según el territorio?", opts:["Asimilación","Estatus legal diferenciado","No intervención","Promoción del idioma oficial"], a:1},
+  {q:"¿Qué país reconoce el filipino y el inglés como lenguas oficiales y también valora la diversidad lingüística interna?", opts:["Perú","Argentina","Filipinas","Suiza"], a:2},
+  {q:"¿Qué institución o nivel de gobierno suele ser responsable de establecer las directrices lingüísticas de un Estado?", opts:["Las organizaciones internacionales","Las universidades","El gobierno o autoridad nacional","Los grupos comunitarios locales"], a:2},
+  {q:"¿Cuál es el objetivo principal de una política lingüística de asimilación?", opts:["Promover la diversidad cultural","Fomentar el bilingüismo equilibrado","Imponer el uso exclusivo de una sola lengua para reforzar la unidad nacional","Favorecer la interacción libre entre distintas comunidades lingüísticas"], a:2},
+  {q:"En la política de asimilación, ¿qué medida es característica?", opts:["Promover la enseñanza en lenguas minoritarias","Permitir el uso libre de todas las lenguas en la administración","Declarar una lengua como oficial y obligatoria en educación y documentos públicos","Fomentar la diversidad lingüística en los medios"], a:2},
+  {q:"¿Qué país adoptó una política de nacionalismo lingüístico bajo el lema 'una nación, una lengua'?", opts:["España","Turquía","Francia","Filipinas"], a:1},
+  {q:"¿Qué tipo de política lingüística se caracteriza por la ausencia de intervención estatal en el uso o protección de las lenguas?", opts:["Asimilación","Promoción del idioma oficial","No intervención","Estatus legal diferenciado"], a:2},
+  {q:"En el caso de Estados Unidos, ¿qué característica refleja su política de no intervención?", opts:["El inglés está reconocido como idioma oficial federal","Se protege legalmente el uso de lenguas indígenas","No existe lengua oficial reconocida en la Constitución","Se promueve activamente el bilingüismo en todo el país"], a:2},
+  {q:"En Suiza, el romanche tiene un estatus:", opts:["De lengua cooficial en todo el país","De lengua nacional, pero no oficial a nivel federal","De lengua prohibida en la educación","De lengua extranjera reconocida"], a:1},
+  {q:"¿Qué país latinoamericano garantiza un estatus legal diferenciado para más de 40 lenguas indígenas?", opts:["Chile","Perú","Argentina","Brasil"], a:1},
+  {q:"¿Cuál es el modelo lingüístico que reconoce varias lenguas con distintos ámbitos de validez territorial o jurídica?", opts:["Política de asimilación","Política de promoción","Política de estatus legal diferenciado","Política de no intervención"], a:2},
+  {q:"En Francia, la Constitución y la Ley Toubon representan ejemplos de:", opts:["Política de bilingüismo oficial","Política de asimilación y promoción del idioma oficial","Política de no intervención","Política de reconocimiento multicultural"], a:1},
+  {q:"¿Qué política lingüística se orienta a consolidar la lengua del Estado como símbolo de unidad y cohesión social, sin promover el plurilingüismo?", opts:["Política de estatus legal diferenciado","Política de asimilación","Política de promoción del idioma oficial","Política de no intervención"], a:2}
+];
+
+const QUESTIONS = RAW_QUESTIONS.map(item=>{
+  const opts = item.opts.slice();
+  if(opts.length>3){
+    let removeIdx = opts.length-1;
+    if(removeIdx===item.a) removeIdx = opts.length-2;
+    if(removeIdx===item.a) removeIdx = 0;
+    opts.splice(removeIdx,1);
+    let newA = item.a; if(removeIdx < item.a) newA = item.a -1;
+    return {q:item.q, options:opts, a:newA};
+  }
+  return {q:item.q, options:opts, a:item.a};
+});
+
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+let deck = shuffle([...QUESTIONS]); let used=[];
+function drawCard(){ if(deck.length===0){ deck = shuffle([...used]); used=[];} const c = deck.pop(); used.push(c); return c; }
+
+// DOM refs and state
+const cells = Array.from(document.querySelectorAll('.cell'));
+const track = document.getElementById('track');
+const playersListEl = document.getElementById('playersList');
+const rollBtn = document.getElementById('rollBtn');
+const drawBtn = document.getElementById('drawBtn');
+const resetBtn = document.getElementById('resetBtn');
+const muteBtn = document.getElementById('muteBtn');
+const volRange = document.getElementById('volRange');
+const editToggle = document.getElementById('editToggle');
+const exportCssBtn = document.getElementById('exportCssBtn');
+const exportJsonBtn = document.getElementById('exportJsonBtn');
+const coordBox = document.getElementById('coordBox');
+const turnBanner = document.getElementById('turnBanner');
+const notif = document.getElementById('notif');
+const overlay = document.getElementById('overlay');
+const modalBack = document.getElementById('modalBack');
+const modalTitle = document.getElementById('modalTitle');
+const questionText = document.getElementById('questionText');
+const optionsEl = document.getElementById('options');
+const duelPlayersEl = document.getElementById('duelPlayers');
+const duelResultEl = document.getElementById('duelResult');
+const closeModalBtn = document.getElementById('closeModal');
+const colorModal = document.getElementById('colorModal');
+const colorCell = document.getElementById('colorCell');
+const colorInput = document.getElementById('colorInput');
+const applyColor = document.getElementById('applyColor');
+const closeColor = document.getElementById('closeColor');
+const colorBtn = document.getElementById('colorBtn');
+const soundModal = document.getElementById('soundModal');
+const soundBtn = document.getElementById('soundBtn');
+const applySounds = document.getElementById('applySounds');
+const closeSound = document.getElementById('closeSound');
+const soundDiceSel = document.getElementById('soundDiceSel');
+const soundDrawSel = document.getElementById('soundDrawSel');
+const soundDuelSel = document.getElementById('soundDuelSel');
+const soundOkSel = document.getElementById('soundOkSel');
+const soundFailSel = document.getElementById('soundFailSel');
+const soundDuelWinSel = document.getElementById('soundDuelWinSel');
+
+const MAX_PLAYERS = PLAYERS_EMOJIS.length;
+let players = Array.from({length:MAX_PLAYERS},(_,i)=>({emoji:PLAYERS_EMOJIS[i], name:`Jugador ${i+1}`}));
+let state = { positions: Array(MAX_PLAYERS).fill(0), current:0, lastRoll:0, awaitingMove:false, finished:false, skipNext:Array(MAX_PLAYERS).fill(false)};
+let editMode=false, draggingPiece=null, dragClone=null, uiBlocked=false;
+
+// audio init
+let audioCtx=null, masterGain=null;
+let masterVol = Number(localStorage.getItem('cdp_masterVol')||60)/100;
+let soundOn = localStorage.getItem('cdp_soundOn')!=='false';
+volRange.value = Math.round(masterVol*100);
+let soundPreset = {
+  dice: localStorage.getItem('cdp_sound_dice')||'classic',
+  draw: localStorage.getItem('cdp_sound_draw')||'shuf',
+  duel: localStorage.getItem('cdp_sound_duel')||'fanfare',
+  ok: localStorage.getItem('cdp_sound_ok')||'ping',
+  fail: localStorage.getItem('cdp_sound_fail')||'thud',
+  duelwin: localStorage.getItem('cdp_sound_duelwin')||'epic'
+};
+function initAudio(){ try{ const C = window.AudioContext || window.webkitAudioContext; audioCtx = new C(); masterGain = audioCtx.createGain(); masterGain.gain.value = masterVol; masterGain.connect(audioCtx.destination);}catch(e){ audioCtx=null; masterGain=null; } }
+initAudio();
+function toneSeq(freqs,durs,type='sine'){ if(!audioCtx) return; let t=audioCtx.currentTime; freqs.forEach((f,i)=>{ const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type=type; o.frequency.value=f; g.gain.value=0.08; o.connect(g); g.connect(masterGain); const dur=durs[i]||durs[durs.length-1]; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.08,t+0.01); o.start(t); g.gain.linearRampToValueAtTime(0.0001,t+dur/1000); o.stop(t+dur/1000+0.02); t+=dur/1000; }); }
+function playSound(type){ if(!soundOn) return; if(!audioCtx) initAudio(); const s = soundPreset[type]||''; if(type==='dice'){ if(s==='classic') toneSeq([900,700,520],[60,70,90]); if(s==='digital') toneSeq([1500,1200,900],[30,30,40]); if(s==='soft') toneSeq([700,600,500],[80,80,100]); } if(type==='draw'){ if(s==='shuf') toneSeq([1200,950,700],[30,35,40]); if(s==='slide') toneSeq([900,800,700],[60,60,80]); if(s==='paper') toneSeq([1000,850,700],[40,50,60]); } if(type==='duel'){ if(s==='fanfare') toneSeq([520,820,1000],[120,100,160],'sawtooth'); if(s==='stomp') toneSeq([300,200],[120,160],'square'); if(s==='low') toneSeq([220,330,440],[140,120,160]); } if(type==='ok'){ if(s==='ping') toneSeq([1200,1500],[120,100]); if(s==='bright') toneSeq([1400,1700,2000],[80,70,60],'triangle'); } if(type==='fail'){ if(s==='thud') toneSeq([320,220],[140,120]); if(s==='ding') toneSeq([400,300],[120,100],'square'); } if(type==='duelwin'){ if(s==='epic') toneSeq([600,800,1000],[180,160,240],'sawtooth'); if(s==='short') toneSeq([800,1000],[120,140]); } if(type==='gamewin') toneSeq([1400,1200,1000],[200,220,260]); }
+
+// helpers
+function updateBanner(txt){ turnBanner.textContent = txt; turnBanner.style.transform='translateY(-6px)'; setTimeout(()=>turnBanner.style.transform='translateY(0)',260); }
+function showNotif(text,type='ok',dur=1600){ notif.textContent = text; notif.className = 'notif '+(type==='ok'?'ok':'fail'); notif.style.display='block'; setTimeout(()=>{ notif.style.display='none'; }, dur); }
+function blockUI(yes=true){ uiBlocked = yes; overlay.style.display = yes ? 'block' : 'none'; const controls = document.getElementById('mainControls'); if(yes){ controls.querySelectorAll('button,input,select').forEach(el=>el.disabled=true); } else { controls.querySelectorAll('button,input,select').forEach(el=>el.disabled=false); updateMuteButton(); drawBtn.disabled=false; } }
+
+function renderPlayers(){ playersListEl.innerHTML=''; players.forEach((p,idx)=>{ const row=document.createElement('div'); row.className='player-row'; row.innerHTML = `<div class="player-badge">${p.emoji}</div><div style="font-weight:800" id="pname${idx}">${p.name}</div>`; const editBtn=document.createElement('button'); editBtn.textContent='✏️'; editBtn.style.marginLeft='8px'; editBtn.addEventListener('click', ()=>{ const v=prompt('Nombre del jugador:', p.name); if(v!==null){ p.name=v; document.getElementById('pname'+idx).textContent=v; localStorage.setItem('cdp_players', JSON.stringify(players)); } }); row.appendChild(editBtn); const pos = document.createElement('div'); pos.style.marginLeft='auto'; pos.style.color='var(--muted)'; pos.innerHTML = `Casilla: <span id="pos${idx}">${state.positions[idx]}</span>`; row.appendChild(pos); playersListEl.appendChild(row); }); renderPieces(); }
+
+function renderPieces(){ cells.forEach(c=> c.querySelector('.pieces').innerHTML=''); state.positions.forEach((pos,pIdx)=>{ const c = cells.find(x=>Number(x.dataset.i)===pos); if(!c) return; const cont = c.querySelector('.pieces'); const el = document.createElement('div'); el.className='piece'; el.dataset.player=String(pIdx+1); el.title = players[pIdx].name; el.textContent = players[pIdx].emoji; if(pIdx===state.current) el.classList.add('turn'); cont.appendChild(el); // always draggable
+  el.addEventListener('pointerdown', (ev)=>{ ev.preventDefault(); startPieceDrag(ev, el); });
+  const posSpan = document.getElementById('pos'+pIdx); if(posSpan) posSpan.textContent = state.positions[pIdx]; }); }
+
+// dice (visual) - remove "(solo referencia)"
+function rollDiceAnim(){ return new Promise(res=>{ rollBtn.disabled=true; if(soundOn) playSound('dice'); let ticks=8; const iv=setInterval(()=>{ const n=Math.floor(Math.random()*3)+1; rollBtn.textContent='🎲 '+n; ticks--; if(ticks<=0){ clearInterval(iv); const final=Math.floor(Math.random()*3)+1; setTimeout(()=>{ rollBtn.textContent='🎲 Tirar dado'; rollBtn.disabled=false; res(final); },200); } },80); }); }
+
+rollBtn.addEventListener('click', async ()=>{ const dice = await rollDiceAnim(); state.lastRoll = dice; updateBanner(`🎲 Dado: ${dice} — Turno: ${players[state.current].name}`); });
+
+resetBtn.addEventListener('click', ()=>{ state.positions = Array(MAX_PLAYERS).fill(0); state.current=0; state.lastRoll=0; state.finished=false; state.skipNext=Array(MAX_PLAYERS).fill(false); renderPieces(); updateBanner('Partida reiniciada. Jugador 1 comienza.'); });
+
+muteBtn.addEventListener('click', ()=>{ soundOn = !soundOn; updateMuteButton(); });
+
+function updateMuteButton(){ muteBtn.textContent = soundOn ? '🔊 Sonido ON' : '🔇 Sonido OFF'; localStorage.setItem('cdp_soundOn', soundOn?'true':'false'); }
+
+// clicking a cell to move current player's piece (only if target != current pos)
+cells.forEach(cell=>{ cell.addEventListener('click', async ()=>{ if(editMode || uiBlocked) return; const target = Number(cell.dataset.i); const curPos = state.positions[state.current]; if(target === curPos){ updateBanner('Ya estás en esa casilla. Usa arrastre para mover otra ficha.'); return; } // move current player to target
+  const prevPos = curPos;
+  state.positions[state.current] = target;
+  applySpecialCellEffects(state.current, target);
+  renderPieces();
+  updateBanner(`${players[state.current].name} movido a casilla ${target}.`);
+  // if landed on duel or finish, handle (only if newly arrived)
+  const action = cell.dataset.action;
+  if(action==='finish' || target===6){ updateBanner(`¡${players[state.current].name} ha llegado a la meta y gana!`); if(soundOn) playSound('gamewin'); state.finished=true; return; }
+  if(action==='duel' && target !== prevPos){ // only trigger if moved into duel
+    if(soundOn) playSound('duel'); await startDuelAndBlock(state.current); return;
+  }
+}); });
+
+// special effects
+function applySpecialCellEffects(playerIdx, cellIdx){
+  if(cellIdx===1){
+    showNotif('Has caído en +2 😄', 'ok', 1600);
+  } else if(cellIdx===5){
+    showNotif('Has caído en -2 🥲', 'fail', 1600);
+  }
+}
+
+// draw card active from start
+drawBtn.addEventListener('click', async ()=>{ if(uiBlocked) return; const card = drawCard(); if(soundOn) playSound('draw'); const res = await showQuestionModal(card,false); if(res && !res.closed){ if(res.correct){ showNotif('✅ Has acertado','ok',1400); if(soundOn) playSound('ok'); } else { showNotif('❌ Has fallado','fail',1400); if(soundOn) playSound('fail'); state.skipNext[state.current]=true; } // progress turn after answer
+  state.current = (state.current+1)%MAX_PLAYERS;
+  renderPieces();
+  updateBanner(`Turno: ${players[state.current].name}. Pulsa "Tirar dado".`);
+} });
+
+// question modal
+function showQuestionModal(card,isDuel=false,duelContext=null,playerLabel=''){ return new Promise(res=>{ modalBack.style.display='flex'; modalTitle.textContent = isDuel ? 'Duelo — responde' : 'Carta — pregunta'; duelPlayersEl.style.display = isDuel ? 'block' : 'none'; duelResultEl.style.display = 'none'; duelPlayersEl.textContent = duelContext ? duelContext.join('  VS  ') : ''; questionText.textContent = (playerLabel ? playerLabel + ': ' : '') + card.q; optionsEl.innerHTML = ''; modalFoot.textContent = isDuel ? '' : `Turno: ${players[state.current].name}`; card.options.forEach((opt,idx)=>{ const b = document.createElement('button'); b.className='opt-btn'; b.textContent = opt; b.addEventListener('click', ()=>{ Array.from(optionsEl.children).forEach(x=>x.disabled=true); const correct = idx===card.a; if(correct){ b.classList.add('correct'); } else { b.classList.add('incorrect'); } setTimeout(()=>{ modalBack.style.display='none'; res({correct, selected:idx}); },420); }); optionsEl.appendChild(b); }); closeModalBtn.onclick = ()=>{ modalBack.style.display='none'; res({closed:true}); }; }); }
+
+// duel sequence that blocks UI until finished
+async function startDuelAndBlock(attackerIdx){
+  blockUI(true);
+  // pick opponent
+  const candidates=[]; for(let i=0;i<MAX_PLAYERS;i++) if(i!==attackerIdx) candidates.push(i);
+  const opponent = candidates[Math.floor(Math.random()*candidates.length)];
+  updateBanner(`Duelo: ${players[attackerIdx].name} vs ${players[opponent].name}`);
+  if(soundOn) playSound('duel');
+  // draw two different cards
+  let card1 = drawCard(); let card2 = drawCard(); if(card1===card2 && deck.length>0) card2 = drawCard();
+  // attacker answers
+  const r1 = await showQuestionModal(card1, true, [players[attackerIdx].name, players[opponent].name], players[attackerIdx].name);
+  const ok1 = r1 && r1.correct;
+  duelResultEl.style.display='block'; duelResultEl.textContent = ok1 ? '¡Has acertado! 😄' : '¡Has fallado! 🥲';
+  duelResultEl.style.fontSize='42px';
+  showNotif(ok1 ? '¡Has acertado! 😄' : '¡Has fallado! 🥲', ok1 ? 'ok' : 'fail', 2000); duelResultEl.style.color = ok1 ? 'var(--good)' : 'var(--bad)'; if(ok1 && soundOn) playSound('ok'); if(!ok1 && soundOn) playSound('fail'); await new Promise(r=>setTimeout(r,700));
+  // opponent answers
+  const r2 = await showQuestionModal(card2, true, [players[attackerIdx].name, players[opponent].name], players[opponent].name);
+  const ok2 = r2 && r2.correct;
+  duelResultEl.style.display='block'; duelResultEl.textContent = ok2 ? '¡Has acertado! 😄' : '¡Has fallado! 🥲';
+  duelResultEl.style.fontSize='42px';
+  showNotif(ok2 ? '¡Has acertado! 😄' : '¡Has fallado! 🥲', ok2 ? 'ok' : 'fail', 2000); duelResultEl.style.color = ok2 ? 'var(--good)' : 'var(--bad)'; if(ok2 && soundOn) playSound('ok'); if(!ok2 && soundOn) playSound('fail'); await new Promise(r=>setTimeout(r,700));
+  // apply results
+  if(ok1 && !ok2){ state.positions[attackerIdx] = Math.min(6, state.positions[attackerIdx]+1); state.skipNext[opponent]=true; updateBanner(`${players[attackerIdx].name} acierta y avanza 1. ${players[opponent].name} falla y pierde turno.`); if(soundOn) playSound('duelwin'); showNotif('¡Has ganado el duelo! 🏆', 'ok', 2200); }
+  else if(!ok1 && ok2){ state.positions[opponent] = Math.min(6, state.positions[opponent]+1); state.skipNext[attackerIdx]=true; updateBanner(`${players[opponent].name} acierta y avanza 1. ${players[attackerIdx].name} falla y pierde turno.`); if(soundOn) playSound('duelwin'); showNotif('¡Has ganado el duelo! 🏆', 'ok', 2200); }
+  else if(ok1 && ok2){ state.positions[attackerIdx] = Math.min(6, state.positions[attackerIdx]+1); state.positions[opponent] = Math.min(6, state.positions[opponent]+1); updateBanner(`Ambos aciertan. Ambos avanzan 1 casilla.`); if(soundOn) playSound('duelwin'); showNotif('¡Has ganado el duelo! 🏆', 'ok', 2200); }
+  else { state.skipNext[attackerIdx]=state.skipNext[opponent]=true; updateBanner(`Ambos fallan. Ninguno avanza y pierden su siguiente turno.`); if(soundOn) playSound('fail'); }
+  renderPieces();
+  // check winners
+  if(state.positions[attackerIdx]===6){ updateBanner(`${players[attackerIdx].name} ha llegado a la meta y gana!`); if(soundOn) playSound('gamewin'); state.finished=true; blockUI(false); return; }
+  if(state.positions[opponent]===6){ updateBanner(`${players[opponent].name} ha llegado a la meta y gana!`); if(soundOn) playSound('gamewin'); state.finished=true; blockUI(false); return; }
+  // advance turn and unblock
+  state.current = (state.current+1)%MAX_PLAYERS;
+  updateBanner(`Turno: ${players[state.current].name}. Pulsa "Tirar dado".`);
+  blockUI(false);
+}
+
+// resolve question results for normal cards
+async function resolveCardResult(result){
+  if(result.closed){ updateBanner('Pregunta cerrada sin responder — considerada fallada.'); state.skipNext[state.current]=true; if(soundOn) playSound('fail'); showNotif('❌ Has fallado','fail',1400); }
+  else if(result.correct){ updateBanner(`Correcto. ${players[state.current].name}`); if(soundOn) playSound('ok'); showNotif('✅ Has acertado','ok',1400); }
+  else { updateBanner(`Incorrecto. ${players[state.current].name} pierde el siguiente turno.`); state.skipNext[state.current]=true; if(soundOn) playSound('fail'); showNotif('❌ Has fallado','fail',1400); }
+  state.current=(state.current+1)%MAX_PLAYERS;
+  renderPieces();
+  updateBanner(`Turno: ${players[state.current].name}. Pulsa "Tirar dado".`);
+}
+
+const originalShowQuestionModal = showQuestionModal;
+showQuestionModal = function(card,isDuel=false,duelContext=null,playerLabel=''){ return originalShowQuestionModal(card,isDuel,duelContext,playerLabel).then(async (res)=>{ if(!isDuel){ await resolveCardResult(res); } return res; }); };
+
+// Editing handlers and improved drag
+function attachEditHandlers(){
+  editToggle.addEventListener('click', ()=>{ editMode=!editMode; coordBox.textContent = editMode ? 'Modo edición activado. Arrastra casillas para reposicionar.' : 'Modo edición desactivado.'; cells.forEach(c=> c.classList.toggle('editing', editMode)); });
+
+  cells.forEach(c=>{ c.addEventListener('dblclick', ()=>{ if(!editMode) return; const txt = prompt('Texto casilla:', c.querySelector('.icon').textContent||''); if(txt!==null) c.querySelector('.icon').textContent = txt; const color = prompt('Color (HEX) o vacío:',''); if(color) c.style.background = color; }); });
+
+  // drag cells in edit mode
+  let trackRect=null, cellW=0, cellH=0;
+  cells.forEach(cell=>{ cell.addEventListener('mousedown', (ev)=>{ if(!editMode) return; ev.preventDefault(); draggingCell=cell; cell.classList.add('dragging'); trackRect=track.getBoundingClientRect(); cellW=cell.offsetWidth; cellH=cell.offsetHeight; document.addEventListener('mousemove', onDrag); document.addEventListener('mouseup', onDrop, {once:true}); }); });
+  function onDrag(ev){ if(!draggingCell) return; let x = ev.clientX - trackRect.left - (cellW/2); let y = ev.clientY - trackRect.top - (cellH/2); x=Math.max(0,Math.min(x,trackRect.width-cellW)); y=Math.max(0,Math.min(y,trackRect.height-cellH)); const left = Math.round(x); const top = Math.round(y); draggingCell.style.left = left + 'px'; draggingCell.style.top = top + 'px'; coordBox.textContent = `Editando casilla ${draggingCell.dataset.i} — left: ${left}px top: ${top}px`; }
+  function onDrop(){ if(!draggingCell) return; draggingCell.classList.remove('dragging'); coordBox.textContent = `Posición guardada casilla ${draggingCell.dataset.i}.`; document.removeEventListener('mousemove', onDrag); draggingCell=null; }
+
+  exportCssBtn.addEventListener('click', ()=>{ const css = cells.map(c=>{ const left = parseInt(c.style.left || window.getComputedStyle(c).left); const top = parseInt(c.style.top || window.getComputedStyle(c).top); return `.cell[data-i="${c.dataset.i}"]{left:${left}px;top:${top}px}`; }).join("\n"); navigator.clipboard.writeText(css).then(()=> coordBox.textContent='CSS copiado al portapapeles.').catch(()=> prompt('Copia este CSS:', css)); });
+
+  exportJsonBtn.addEventListener('click', ()=>{ const obj={}; cells.forEach(c=>{ const left = parseInt(c.style.left || window.getComputedStyle(c).left); const top = parseInt(c.style.top || window.getComputedStyle(c).top); obj[c.dataset.i] = {left,top,icon:c.querySelector('.icon').textContent, bg: c.style.background||null}; }); const data = JSON.stringify(obj,null,2); navigator.clipboard.writeText(data).then(()=> coordBox.textContent='JSON copiado al portapapeles.').catch(()=>{ const blob=new Blob([data],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='posiciones_tablero.json'; a.click(); URL.revokeObjectURL(url); }); });
+
+  // color modal
+  colorBtn.addEventListener('click', ()=> colorModal.style.display='flex');
+  closeColor.addEventListener('click', ()=> colorModal.style.display='none');
+  applyColor.addEventListener('click', ()=>{ const sel = colorCell.value; const col = colorInput.value; if(sel==='all'){ cells.forEach(c=> c.style.background = col); } else { const el = cells.find(x=> x.dataset.i===sel); if(el) el.style.background = col; } colorModal.style.display='none'; });
+
+  // sound modal
+  soundBtn.addEventListener('click', ()=> soundModal.style.display='flex');
+  closeSound.addEventListener('click', ()=> soundModal.style.display='none');
+  applySounds.addEventListener('click', ()=>{ soundPreset.dice = soundDiceSel.value; soundPreset.draw = soundDrawSel.value; soundPreset.duel = soundDuelSel.value; soundPreset.ok = soundOkSel.value; soundPreset.fail = soundFailSel.value; soundPreset.duelwin = soundDuelWinSel.value; localStorage.setItem('cdp_sound_dice', soundPreset.dice); localStorage.setItem('cdp_sound_draw', soundPreset.draw); localStorage.setItem('cdp_sound_duel', soundPreset.duel); localStorage.setItem('cdp_sound_ok', soundPreset.ok); localStorage.setItem('cdp_sound_fail', soundPreset.fail); localStorage.setItem('cdp_sound_duelwin', soundPreset.duelwin); soundModal.style.display='none'; });
+}
+
+// improved dragging: clone element appended to body to ensure visibility
+function startPieceDrag(ev, pieceEl){
+  if(uiBlocked) return;
+  draggingPiece = {el:pieceEl, playerIdx: Number(pieceEl.dataset.player)-1, origin: state.positions[Number(pieceEl.dataset.player)-1]};
+  // create clone for dragging on top of everything
+  dragClone = pieceEl.cloneNode(true);
+  dragClone.classList.add('halo');
+  dragClone.style.position = 'fixed';
+  dragClone.style.left = (ev.clientX-18) + 'px';
+  dragClone.style.top = (ev.clientY-18) + 'px';
+  dragClone.style.zIndex = 99999;
+  dragClone.style.pointerEvents = 'none';
+  document.body.appendChild(dragClone);
+  // visually dim original so it looks lifted
+  pieceEl.style.opacity = 0.25;
+  document.addEventListener('pointermove', onPieceMove);
+  document.addEventListener('pointerup', onPieceDrop, {once:true});
+}
+function onPieceMove(ev){
+  if(!dragClone) return;
+  dragClone.style.left = (ev.clientX-18) + 'px';
+  dragClone.style.top = (ev.clientY-18) + 'px';
+}
+function onPieceDrop(ev){
+  if(!draggingPiece) return;
+  const tr = track.getBoundingClientRect();
+  const px = ev.clientX - tr.left;
+  const py = ev.clientY - tr.top;
+  // find nearest cell by center distance
+  let dest = null;
+  let bestDist = Infinity;
+  for(const c of cells){
+    const crect = c.getBoundingClientRect();
+    const cx = crect.left - tr.left + crect.width/2;
+    const cy = crect.top - tr.top + crect.height/2;
+    const dx = px - cx; const dy = py - cy;
+    const d = Math.sqrt(dx*dx+dy*dy);
+    if(d < bestDist){ bestDist = d; dest = Number(c.dataset.i); }
+  }
+  const pIdx = draggingPiece.playerIdx;
+  const prev = draggingPiece.origin;
+  if(dest !== null){
+    state.positions[pIdx] = dest;
+    applySpecialCellEffects(pIdx,dest);
+    updateBanner(`${players[pIdx].name} colocado en casilla ${dest}.`);
+    renderPieces();
+    // trigger duel only if moved into duel cell
+    if(dest===4 && dest !== prev){
+      if(soundOn) playSound('duel');
+      startDuelAndBlock(pIdx);
+    }
+    if(dest===6){ updateBanner(`¡${players[pIdx].name} ha llegado a la meta y gana!`); if(soundOn) playSound('gamewin'); state.finished=true; }
+  } else {
+    updateBanner('Suelta sobre una casilla válida para colocar la ficha.');
+  }
+  // cleanup clone and restore original opacity
+  if(dragClone && dragClone.parentNode) dragClone.parentNode.removeChild(dragClone);
+  dragClone = null;
+  if(draggingPiece && draggingPiece.el) draggingPiece.el.style.opacity = '';
+  draggingPiece = null;
+  renderPieces();
+}
+
+// init app
+function initApp(){ renderPlayers(); renderPieces(); initAudio(); attachEditHandlers(); drawBtn.disabled=false; updateBanner(`Jugador ${state.current+1} comienza. Pulsa "Tirar dado".`); const saved = localStorage.getItem('cdp_players'); if(saved){ try{ const sp = JSON.parse(saved); if(Array.isArray(sp)) players = sp; }catch(e){} } }
+initApp();
+
+// restore soundOn saved
+soundOn = localStorage.getItem('cdp_soundOn')!=='false';
+muteBtn.textContent = soundOn ? '🔊 Sonido ON' : '🔇 Sonido OFF';
+
+}); // end DOMContentLoaded
+</script>
+</body>
+</html>
